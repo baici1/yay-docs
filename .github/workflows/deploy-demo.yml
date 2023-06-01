@@ -3,8 +3,10 @@ name: 部署文档
 on:
   workflow_call:
     secrets:
+      # 获取 ACCESS_TOKEN 权限
       ACCESS_TOKEN:
         required: true
+  # 触发条件，这里设置为 push，也就是只有在 push 时才会触发
   push:
     branches:
       # 确保这是你正在使用的分支名称
@@ -12,31 +14,34 @@ on:
 
 jobs:
   deploy-pages:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest # 设置运行环境
+    # 接下来的步骤
     steps:
+      # 检查并获取仓库源码，包括子模块
       - name: Checkout
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
           # 如果你文档需要 Git 子模块，取消注释下一行
           submodules: true
-
+      # 设置 Node.js 环境
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
           node-version: 18
-
+      # 安装 pnpm
       - name: Install pnpm
         run: npm install -g pnpm
-
+      # 安装依赖
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
-
+      # 打包并构建文档
       - name: 构建文档
         env:
           NODE_OPTIONS: --max_old_space_size=8192
         run: |-
           pnpm run docs:build
+      # 创建 CNAME 文件，设置自定义域名
       - name: Create CNAME
         run: |
           echo "yay-docs.yangdiy.cn" > CNAME
@@ -44,6 +49,7 @@ jobs:
 
       # 查看 workflow 的文档来获取更多信息
       # @see https://github.com/crazy-max/ghaction-github-pages
+      # 部署到 GitHub Pages
       - name: Deploy to GitHub Pages
         uses: crazy-max/ghaction-github-pages@v2
         with:
