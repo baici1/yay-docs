@@ -69,6 +69,8 @@ jobs:
 
 ## 实例部署
 
+> 场景：使用 `Github Action` 对 `vuepress` 项目进行打包并部署
+
 在 `.github/workflows` 文件夹中创建一个 `yaml` 文件。
 
 相关配置如下：
