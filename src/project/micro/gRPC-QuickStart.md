@@ -247,5 +247,300 @@ func main() {
 }
 ```
 
-整体变化不大，只是改了第 `21` 行的代码
+整体变化不大，只是改了第 `21` 行的代码。
 
+在这里，两个代理文件确实会帮助我们去写业务逻辑代码，写多个功能函数时候，其实都是一样逻辑，大胆的想，可以自动生成吗？同时还有很多地方没有完善，例如跨语言调用等。
+
+其实这些都可以通过`gRPC`来实现。
+
+## gRPC
+
+生成这些文件，需要 `protobuf` 的帮助，入门学习可以参考如下：
+
+* https://juejin.cn/post/7144948875613339685
+* https://zhuanlan.zhihu.com/p/435944782
+
+关于环境搭建，请看上一篇《环境搭建》。
+
+1. 首先，需要定义双方实现的功能相关信息：参数、函数名、返回类型等等
+
+```protobuf
+syntax = "proto3"; // 定义proto 版本号
+option go_package = ".;proto"; //定义 go 包名，用于生成的 .pd.go 文件
+
+service Greeter {  // 定义消息服务，设置rpc接口服务
+    rpc SayHello (HelloRequest) returns (HelloReply);
+}
+// 定义消息体
+message HelloRequest {
+    string name = 1;
+}
+// 定义消息体
+message HelloReply {
+    string message = 1;
+}
+```
+
+2. 自动生成文件
+
+```shell
+protoc -I . hello.proto --go_out=plugins=grpc:. 
+```
+
+3. 服务端代码
+
+```go
+//定义一个结构体，作用是实现helloworld中的GreeterServer
+type Server struct{}
+// 相关业务函数
+func (s *Server) SayHello(ctx context.Context, request *proto.HelloRequest) (*proto.HelloReply,
+	error) {
+	return &proto.HelloReply{
+		Message: "hello " + request.Name,
+	}, nil
+}
+
+func main() {
+    //1.实例化gRPC服务
+	g := grpc.NewServer()
+    //2. 服务注册
+	proto.RegisterGreeterServer(g, &Server{})
+    // 3. 监听端口
+	lis, err := net.Listen("tcp", "0.0.0.0:50051")
+	if err != nil {
+		panic("failed to listen:" + err.Error())
+	}
+    //4. 启动服务
+	err = g.Serve(lis)
+	if err != nil {
+		panic("failed to start grpc:" + err.Error())
+	}
+}
+
+```
+
+4. 客户端代码
+
+```go
+func main() {
+	//1. 建立服务连接
+	conn, err := grpc.Dial("127.0.0.1:50051", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		panic(err)
+	}
+    // 2.关闭服务
+	defer conn.Close()
+	// 3. 实例化客户端连接
+	c := proto.NewGreeterClient(conn)
+    //4. 客户端调用在proto中定义的SayHello()rpc方法，发起请求，接收服务端响应
+	r, err := c.SayHello(context.Background(), &proto.HelloRequest{Name: "1234"})
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(r.Message)
+}
+```
+
+5. 运行结果
+
+![image-20230608104107433](.vuepress/public/gRPC-QuickStart/image-20230608104107433.png)
+
+### 流
+
+`grpc`的 stream (流) 主要用于传输一些大数据，或者服务端和客户端长时间数据交互，比如聊天机器人。所具备流模式如下：
+
+1. 服务端数据流
+
+这种模式是客户端发起一次请求，服务端返回一段连续的数据流。典型的例子是客户端向服务端发送一个股票代码，服务端就把该股票的实时数据源源不断的返回给客户端。
+
+2. 客户端数据流
+
+这种模式是客户端源源不断的向服务端发送数据流，而在发送结束后，由服务端返回一个响应。典型的例子是物联网终端向服务器报送数据。
+
+3. 双向数据流
+
+这种模式是客户端和服务端都可以向对方发送数据流，这个时候双方的数据可以同时互相发送，也就是可以实现实时交互。典型的例子是聊天机器人。
+
+实现代码：
+
+`protobuf` 文件
+
+```protobuf
+syntax = "proto3";
+
+option go_package = ".;proto"; 
+service Greeter {
+    rpc GetStream(StreamReqData) returns (stream StreamResData); //服务端流模式
+    rpc PutStream(stream StreamReqData) returns (StreamResData); //客户端流模式
+    rpc AllStream(stream StreamReqData) returns (stream StreamResData); //双向流模式
+}
+
+message StreamReqData {
+    string data = 1;
+}
+
+message StreamResData {
+    string data = 1;
+}
+```
+
+```go
+func main() {
+	conn, err := grpc.Dial("localhost:50052", grpc.WithInsecure())
+	if err != nil {
+		panic(err)
+	}
+	defer conn.Close()
+	//服务端流模式
+	c := proto.NewGreeterClient(conn)
+	res, _ := c.GetStream(context.Background(), &proto.StreamReqData{Data: "1234"})
+	for {
+		a, err := res.Recv() 
+		if err != nil {
+			fmt.Println(err)
+			break
+		}
+		fmt.Println(a.Data)
+	}
+
+	//客户端流模式
+	putS, _ := c.PutStream(context.Background())
+	i := 0
+	for {
+		i++
+		_ = putS.Send(&proto.StreamReqData{
+			Data: fmt.Sprintf("1234%d", i),
+		})
+		time.Sleep(time.Second)
+		if i > 10 {
+			break
+		}
+	}
+
+	//双向流模式
+	allStr, _ := c.AllStream(context.Background())
+	wg := sync.WaitGroup{}
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		for {
+			data, _ := allStr.Recv()
+			fmt.Println("收到客户端消息：" + data.Data)
+		}
+	}()
+
+	//1. 集中学习protobuf， grpc
+
+	go func() {
+		defer wg.Done()
+		for {
+			_ = allStr.Send(&proto.StreamReqData{Data: "312"})
+			time.Sleep(time.Second)
+		}
+	}()
+
+	wg.Wait()
+}
+```
+
+```go
+package main
+
+import (
+	"OldPackageTest/stream_grpc_test/proto"
+	"fmt"
+	"google.golang.org/grpc"
+	"net"
+	"sync"
+	"time"
+)
+
+const PORT = ":50052"
+// 定义一个结构体，实现三种数据流的业务逻辑
+type server struct {
+}
+
+func (s *server) GetStream(req *proto.StreamReqData, res proto.Greeter_GetStreamServer) error {
+	i := 0
+	for {
+		i++
+		_ = res.Send(&proto.StreamResData{
+			Data: fmt.Sprintf("%v", time.Now().Unix()),
+		})
+		time.Sleep(time.Second)
+		if i > 10 {
+			break
+		}
+	}
+
+	return nil
+}
+
+func (s *server) PutStream(cliStr proto.Greeter_PutStreamServer) error {
+	for {
+		if a, err := cliStr.Recv(); err != nil {
+			fmt.Println(err)
+			break
+		} else {
+			fmt.Println(a.Data)
+		}
+	}
+
+	return nil
+}
+
+func (s *server) AllStream(allStr proto.Greeter_AllStreamServer) error {
+	wg := sync.WaitGroup{}
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		for {
+			data, _ := allStr.Recv()
+			fmt.Println("收到客户端消息：" + data.Data)
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		for {
+			_ = allStr.Send(&proto.StreamResData{Data: "我是服务器"})
+			time.Sleep(time.Second)
+		}
+	}()
+
+	wg.Wait()
+	return nil
+}
+
+func main() {
+    // 创建连接
+	lis, err := net.Listen("tcp", PORT)
+	if err != nil {
+		panic(err)
+	}
+    //实例化grpc服务
+	s := grpc.NewServer()
+    //服务注册
+	proto.RegisterGreeterServer(s, &server{})
+	//启动服务
+    err = s.Serve(lis)
+	if err != nil {
+		panic(err)
+	}
+}
+
+```
+
+## 问题
+
+1. 通过生成 `.pb.go` 文件时候，总是报错。
+
+报错信息：
+
+```shell
+--go_out: protoc-gen-go: plugins are not supported; use 'protoc --go-grpc_out=...' to generate gRPC
+
+See https://grpc.io/docs/languages/go/quickstart/#regenerate-grpc-code for more information.
+```
+
+解决方法：https://blog.51cto.com/u_15619895/5259902
