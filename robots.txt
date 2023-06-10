@@ -1,0 +1,5 @@
+
+User-agent:*
+Disallow:
+
+Sitemap: https://yay-docs.yangdiy.cn/sitemap.xml
