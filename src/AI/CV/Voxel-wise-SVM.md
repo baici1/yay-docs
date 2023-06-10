@@ -14,7 +14,7 @@
 
 结果如下：
 
-![e0b2d28a35e1546ee0b9508fd961b59](.vuepress/public/Voxel-wise%20prediction%20of%20recurrent%20high%20grade%20glioma%20via%20proximity%20estimation%20coupled%20multi-dimensional%20SVM/e0b2d28a35e1546ee0b9508fd961b59.png)
+![e0b2d28a35e1546ee0b9508fd961b59](.vuepress/public/Voxel-wise-SVM/e0b2d28a35e1546ee0b9508fd961b59.png)
 
 结果比较不理想。
 
@@ -47,7 +47,7 @@ patch_sklearn()
 
 `target` 图片（实际上是`01`值二维矩阵）如下：
 
-![CA_Recur_warpped_MNI80](.vuepress/public/Voxel-wise%20prediction%20of%20recurrent%20high%20grade%20glioma%20via%20proximity%20estimation%20coupled%20multi-dimensional%20SVM/CA_Recur_warpped_MNI80.png)
+![CA_Recur_warpped_MNI80](.vuepress/public/Voxel-wise-SVM/CA_Recur_warpped_MNI80.png)
 
 如何处理数据会极大影响训练后的结果。他的处理方式如下：
 
@@ -58,7 +58,7 @@ patch_sklearn()
 
 结果相对于上面一种较好，结果如下：
 
-![image-20230610144845761](.vuepress/public/Voxel-wise%20prediction%20of%20recurrent%20high%20grade%20glioma%20via%20proximity%20estimation%20coupled%20multi-dimensional%20SVM/image-20230610144845761.png)
+![image-20230610144845761](.vuepress/public/Voxel-wise-SVM/image-20230610144845761.png)
 
 > 注：`max_iter=20000`
 
